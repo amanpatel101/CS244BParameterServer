@@ -17,10 +17,10 @@ class ConsistentHash():
             self.add_key(key)
     def get_hash_key(self, key):
         #Gets the hash for a key
-        return hashlib.md5(str(key).encode()).hexdigest()
+        return hashlib.sha256(str(key).encode()).hexdigest()
     def get_hash_node(self, node):
         #Gets multiple hashes for a node in a deterministic manner
-        return [hashlib.md5((str(node) + str(hash_iter)).encode()).hexdigest() for hash_iter in range(self.hashes_per_node)]
+        return [hashlib.sha256((str(node) + str(hash_iter)).encode()).hexdigest() for hash_iter in range(self.hashes_per_node)]
     def assign_to_node(self, key):
         #Assigns a key to the correct node
         key_hash = self.hash_assignments[key]
@@ -51,7 +51,16 @@ class ConsistentHash():
     def delete_node(self, node):
         #Deletes a node
         del self.node_hashes[node]
+        self.nodes.remove(node)
         self.reassign_keys()
+    def delete_node_and_reassign_to_others(self, node):
+        keys_to_reassign = self.get_keys_per_node()[node]
+        del self.node_hashes[node]
+        self.nodes.remove(node)
+        self.node_tuples = [x for x in self.node_tuples if x[1] in self.node_hashes]
+        for key in keys_to_reassign:
+            self.delete_key(key)
+            self.add_key(key)
     def get_key_to_node_map(self):
         #Returns dictionary of key -> node mappings
         return self.node_assignments
