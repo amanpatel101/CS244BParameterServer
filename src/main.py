@@ -9,10 +9,12 @@ from time import time
 import models
 import data_loader
 import worker
+import json
+
 parser = argparse.ArgumentParser(description='synchronous distributed linear regression')
 parser.add_argument('-ns', '--num_servers',type=int, help='an integer for the number of servers to use')
 parser.add_argument('-nw', '--num_workers',type=int, help='an integer for the number of workers to use per server')
-parser.add_argument('-o', '--output_dir',type=str, help='output dir path for results')
+parser.add_argument('-o', '--output_path',type=str, help='output path path for results')
 parser.add_argument('-i', '--num_iterations',type=int, default=500, help='an integer  for training iterations')
 parser.add_argument('-c', '--checkpoint',type=int, default=1, help='an integer for checkpointing iteration')
 parser.add_argument('-f', '--do_failue_test',type=bool, default=0, help='to do failure test set this to 1')
@@ -135,5 +137,10 @@ if __name__ == "__main__":
 	print("mean total time taken per gradient update step: ", np.mean(time_per_gradient_push[1:]))
 	print("std total time taken per gradient update step: ", np.std(time_per_gradient_push[1:]))
 
+	dict1 = {"total_time": time_per_iteration, 
+		"gradient_time": time_per_gradient_push,
+		"accuracy": accuracy_per_iteration}
+
+	json.dump(dict1, open(args.output_path,"w"))
 
 

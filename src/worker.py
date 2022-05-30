@@ -3,6 +3,7 @@ import numpy as np
 import models
 import data_loader
 import torch.nn as nn
+import data_loader
 
 @ray.remote
 class DataWorker(object):
@@ -33,7 +34,7 @@ class DataWorker(object):
         try:
             data, target = next(self.data_iterator)
         except StopIteration:  # When the epoch ends, start a new epoch.
-            self.data_iterator = iter(get_data_loader()[0])
+            self.data_iterator = iter(data_loader.get_data_loader()[0])
             data, target = next(self.data_iterator)
         
         self.model.zero_grad()
