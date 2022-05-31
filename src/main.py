@@ -20,6 +20,7 @@ parser.add_argument('-c', '--checkpoint',type=int, default=1, help='an integer f
 parser.add_argument('-f', '--do_failure_test',type=bool, default=0, help='to do failure test set this to 1')
 parser.add_argument('-fs', '--server_to_fail',type=str, default="server4", help='server id to kill for failure test')
 parser.add_argument('-f_iter', '--iteration_to_fail',type=int, default=60, help='iteration for the server to kill')
+parser.add_argument('-ev_int', '--eval_interval',type=int, default=5, help='Interval at which we evaluate')
 args = parser.parse_args()
 
 iterations = args.num_iterations # total iterations
@@ -27,7 +28,7 @@ num_workers = args.num_workers # number of workers per server
 num_servers = args.num_servers # number of servers
 checkpoint=args.checkpoint # sync workers and checkpoint weights after these many iterations
 
-eval_interval=5 # evaluate and get accuracy every 5 iterations
+eval_interval=args.eval_interval # evaluate and get accuracy every 5 iterations
 hashes_per_server = 100
 lr=0.1
 
@@ -90,9 +91,6 @@ if __name__ == "__main__":
 		
 			#Update these parameters for each worker to make them trainable
 			[workers[j][idx].update_trainable.remote(weight_assignments["server" + str(j)]) for  idx  in range(num_workers) for j in range(num_servers)]
-			keys_order = []
-			for j in range(num_servers):
-				keys_order.extend(weight_assignments["server" + str(j)])
 
 			#update weights per worker
 			[workers[j][idx].update_weights.remote(keys_order, *current_weights) for  idx  in range(num_workers) for j in range(num_servers)]
@@ -109,6 +107,12 @@ if __name__ == "__main__":
 
 		# use local cache of weights and get gradients from workers
 		gradients = [[workers[j][idx].compute_gradients.remote() for  idx  in range(num_workers)] for j in range(num_servers)]
+
+        #Need to update key order if we've had a failure (can't do it before)
+		if i == failure_iter:
+			keys_order = []
+			for j in range(num_servers):
+				keys_order.extend(weight_assignments["server" + str(j)])
 
 		# Updates gradients to specfic parameter servers
 		current_weights_t = [servers[j].apply_gradients.remote(weight_assignments["server" + str(j)], lr, *gradients[j]) for j in range(num_servers)]
