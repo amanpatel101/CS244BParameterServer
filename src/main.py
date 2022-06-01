@@ -17,7 +17,7 @@ parser.add_argument('-nw', '--num_workers',type=int, help='an integer for the nu
 parser.add_argument('-o', '--output_path',type=str, help='output path path for results')
 parser.add_argument('-i', '--num_iterations',type=int, default=500, help='an integer  for training iterations')
 parser.add_argument('-c', '--checkpoint',type=int, default=1, help='an integer for checkpointing iteration')
-parser.add_argument('-f', '--do_failure_test',type=bool, default=0, help='to do failure test set this to 1')
+parser.add_argument('-f', '--do_failure_test',type=int, default=0, help='to do failure test set this to 1')
 parser.add_argument('-fs', '--server_to_fail',type=str, default="server4", help='server id to kill for failure test')
 parser.add_argument('-f_iter', '--iteration_to_fail',type=int, default=60, help='iteration for the server to kill')
 parser.add_argument('-ev_int', '--eval_interval',type=int, default=5, help='Interval at which we evaluate')
@@ -60,8 +60,8 @@ if __name__ == "__main__":
 	keys_order = []
 
 	for j in range(num_servers):
-		keys_order.extend(weight_assignments["server" + str(j)])
-		current_weights.extend(ray.get(servers[j].get_weights.remote(weight_assignments["server" + str(j)])))
+		keys_order.extend(weight_assignments[server_ids[j]])
+		current_weights.append(ray.get(servers[j].get_weights.remote(weight_assignments[server_ids[j]])))
 	curr_weights_ckpt = current_weights.copy()
 
 	for i in range(iterations):
@@ -69,31 +69,41 @@ if __name__ == "__main__":
 		start_i = time()
 
 
-		if do_failure_test == 1 and i == failure_iter:
+		if do_failure_test==1 and i == failure_iter:
+			server_ids_old = server_ids.copy()
+			weight_assignments_old = weight_assignments.copy()
 			#Define parameters that will need to be moved
 			failure_params = weight_assignments[failure_server]
-
 			#Delete server from hash ring and reassign params
 			hasher.delete_node_and_reassign_to_others(failure_server)
 			weight_assignments = hasher.get_keys_per_node()
-
 			#Update servers and workers
 			num_servers -= 1
 			server_ind = server_ids.index(failure_server)
 			server_ids = server_ids[0 : server_ind] + server_ids[server_ind + 1 : ]
 			servers = servers[0 : server_ind] + servers[server_ind + 1 : ]
 			workers = workers[0 : server_ind] + workers[server_ind + 1 : ]
-
 			#Add each relevant parameter to its new server
 			server_dict = {server_ids[x]:servers[x] for x in range(len(server_ids))}
 			for ind, param in enumerate(failure_params):
 				server_dict[hasher.get_key_to_node_map()[param]].add_weight.remote(param, curr_weights_ckpt[server_ind][ind])
-		
+			for server in server_ids:
+				sid = server_ids_old.index(server)
+				for ind, param in enumerate(weight_assignments_old[server]):
+					server_dict[server].add_weight.remote(param, curr_weights_ckpt[sid][ind])
 			#Update these parameters for each worker to make them trainable
-			[workers[j][idx].update_trainable.remote(weight_assignments["server" + str(j)]) for  idx  in range(num_workers) for j in range(num_servers)]
-
-			#update weights per worker
+			[workers[j][idx].update_trainable.remote(weight_assignments[server_ids[j]]) for  idx  in range(num_workers) for j in range(num_servers)]
+			#print("at failure", np.mean(current_weights))
+			current_weights = curr_weights_ckpt.copy()
+			#print("at failure", np.mean(current_weights))
 			[workers[j][idx].update_weights.remote(keys_order, *current_weights) for  idx  in range(num_workers) for j in range(num_servers)]
+			
+		if i % eval_interval == 0:
+			# Evaluate the current model.
+			model.set_weights(keys_order, current_weights)
+			accuracy = models.evaluate(model, test_loader)
+			accuracy_per_iteration.append(accuracy)
+			print("Iter {}: \taccuracy is {:.1f}".format(i, accuracy))
 
 		# sync all weights on workers
 		if i % args.checkpoint == 0:
@@ -108,14 +118,14 @@ if __name__ == "__main__":
 		# use local cache of weights and get gradients from workers
 		gradients = [[workers[j][idx].compute_gradients.remote() for  idx  in range(num_workers)] for j in range(num_servers)]
 
-        #Need to update key order if we've had a failure (can't do it before)
+		#Need to update key order if we've had a failure (can't do it before)
 		if i == failure_iter:
 			keys_order = []
 			for j in range(num_servers):
-				keys_order.extend(weight_assignments["server" + str(j)])
+				keys_order.extend(weight_assignments[server_ids[j]])
 
 		# Updates gradients to specfic parameter servers
-		current_weights_t = [servers[j].apply_gradients.remote(weight_assignments["server" + str(j)], lr, *gradients[j]) for j in range(num_servers)]
+		current_weights_t = [servers[j].apply_gradients.remote(weight_assignments[server_ids[j]], lr, *gradients[j]) for j in range(num_servers)]
 		current_weights = ray.get(current_weights_t)
 
 
@@ -124,12 +134,6 @@ if __name__ == "__main__":
 		time_per_gradient_push.append(end-start_g)
 
 
-		if i % eval_interval == 0:
-			# Evaluate the current model.
-			model.set_weights(keys_order, current_weights)
-			accuracy = models.evaluate(model, test_loader)
-			accuracy_per_iteration.append(accuracy)
-			print("Iter {}: \taccuracy is {:.1f}".format(i, accuracy))
 
 	# Clean up Ray resources and processes before the next example.
 	ray.shutdown()
