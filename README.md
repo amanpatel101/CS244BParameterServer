@@ -23,7 +23,8 @@ The command to run training is `python src/main.py -ns [num_servers] -nw [num_wo
 - `iteration_to_fail` - which iteration server failure will occur on (default 60, only relevant if `do_failure_test` is true)
 - `server_to_fail` - id of server to fail (default "server4", only relevant if `do_failure_test` is true)
 
-For completeness, training results that comprised Figure 3 are located in `results/`, and training results that comprised Figure 5 are in `results/fault_tolerance/failure_no_failure`.  
+For completeness, training results that comprised Figure 3 are located in `results/`, and training results that comprised Figure 4 are in `results/fault_tolerance/failure_no_failure`. Notebooks to produce the plots in our paper are `notebooks/ConsistentHashing.ipynb` (Figure 2), `notebooks/figure3_plots.ipynb` (Figure 3), and `notebooks/fault_tolerant_plots.ipynb` (Figure 4).  
+
 
 
 
