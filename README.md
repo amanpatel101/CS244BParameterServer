@@ -4,6 +4,8 @@
 
 This repository contains all relevant code for our implementation of a parameter server system for distributed training of machine learning models. We also provide functionality to train a logistic regression model on the MNIST dataset with the task of predicting whether a number is even or odd. 
 
+To setup the environment for running the code do `pip install -r requirements.txt`
+
 All code can be found in the `src/` folder. Below is a brief description of important files:
  - `consistent_hashing.py` - contains our implementation of consistent hashing, which we use to distribute weights among servers
  - `server.py` - defines the servers that form the core of the distributed training procedure
