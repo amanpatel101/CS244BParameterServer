@@ -1,6 +1,6 @@
 servers=5
 workers=1
-iteration_to_fail=40
+iteration_to_fail=$1
 eval_interval=1
 python src/main.py \
 --num_servers $servers \
